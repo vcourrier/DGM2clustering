@@ -20,7 +20,22 @@ sys.path.insert(0, parentPath)# add parent folder to path so as to import common
 from helper import SOS_ID, EOS_ID
 
 class MLP(nn.Module):
+    """
+    Multi-Layer Perceptron (MLP) module.
+    """
     def __init__(self, input_size, arch, output_size, activation=nn.ReLU(), batch_norm=True, init_w=0.02, discriminator=False):
+        """
+        Initialize the MLP.
+
+        Args:
+            input_size (int): Dimensionality of the input data.
+            arch (str): Architecture specification for hidden layers.
+            output_size (int): Dimensionality of the output.
+            activation (nn.Module): Activation function.
+            batch_norm (bool): Whether to use batch normalization.
+            init_w (float): Initialization scale for weights.
+            discriminator (bool): Whether the MLP is used as a discriminator.
+        """
         super(MLP, self).__init__()
         self.input_size = input_size
         self.output_size = output_size
@@ -47,11 +62,23 @@ class MLP(nn.Module):
         self.init_weights()
 
     def forward(self, x):
+        """
+        Forward pass of the MLP.
+
+        Args:
+            x (tensor): Input tensor.
+
+        Returns:
+            x (tensor): Output tensor.
+        """
         for i, layer in enumerate(self.layers):
             x = layer(x)
         return x
 
     def init_weights(self):
+        """
+        Initialize the weights of the MLP.
+        """
         for layer in self.layers:
             try:
                 layer.weight.data.normal_(0, self.init_w)
@@ -59,7 +86,22 @@ class MLP(nn.Module):
             except: pass
 
 class Encoder(nn.Module):
+    """
+    Encoder module for sequence data.
+    """
     def __init__(self, embedder, input_size, hidden_size, bidir, n_layers, dropout=0.5, noise_radius=0.2):
+        """
+        Initialize the Encoder.
+
+        Args:
+            embedder: Embedding layer (nn.Module).
+            input_size (int): Dimensionality of the input data.
+            hidden_size (int): Size of the hidden state in the RNN.
+            bidir (bool): Whether the RNN is bidirectional.
+            n_layers (int): Number of RNN layers.
+            dropout (float): Dropout rate.
+            noise_radius (float): Radius of Gaussian noise.
+        """
         super(Encoder, self).__init__()
         
         self.hidden_size = hidden_size
@@ -75,16 +117,41 @@ class Encoder(nn.Module):
         self.init_weights()
         
     def init_weights(self):
+        """
+        Initialize the weights of the Encoder.
+        """
         for w in self.rnn.parameters():  # initialize the gate weights with orthogonal
             if w.dim()>1:
                 weight_init.orthogonal_(w)
                 
     def store_grad_norm(self, grad):
+        """
+        Store the gradient norm.
+
+        Args:
+            grad (tensor): Gradient tensor.
+
+        Returns:
+            grad (tensor): Gradient tensor.
+        """
         norm = torch.norm(grad, 2, 1)
         self.grad_norm = norm.detach().data.mean()
         return grad
     
     def forward(self, inputs, input_lens=None, init_h=None, noise=False): 
+        """
+        Forward pass of the Encoder.
+
+        Args:
+            inputs (tensor): Input tensor.
+            input_lens (tensor): Input sequence lengths.
+            init_h (tensor): Initial hidden state.
+            noise (bool): Whether to add noise to the output.
+
+        Returns:
+            enc (tensor): Encoded representation.
+            hids (tensor): Hidden states.
+        """
         # init_h: [n_layers*n_dir x batch_size x hid_size]
         if self.embedding is not None:
             inputs=self.embedding(inputs)  # input: [batch_sz x seq_len] -> [batch_sz x seq_len x emb_sz]
@@ -119,7 +186,22 @@ class Encoder(nn.Module):
 
 
 class Encoder_cluster(nn.Module):
+    """
+    Cluster Encoder module for sequence data.
+    """
     def __init__(self, input_dim, hidden_size, dropout, device, bidir = True, block = 'LSTM', n_layers=1):
+        """
+        Initialize the Cluster Encoder.
+
+        Args:
+            input_dim (int): Dimensionality of the input data.
+            hidden_size (int): Size of the hidden state in the RNN.
+            dropout (float): Dropout rate.
+            device: Device for computation.
+            bidir (bool): Whether the RNN is bidirectional.
+            block (str): Type of RNN block ('LSTM' or 'GRU').
+            n_layers (int): Number of RNN layers.
+        """
         super(Encoder_cluster, self).__init__()
 
         self.hidden_size = hidden_size
@@ -140,16 +222,45 @@ class Encoder_cluster(nn.Module):
             self.init_c = torch.zeros([self.n_layers*(1+self.bidir), 1, self.hidden_size],device = self.device)
         
     def init_weights(self):
+        """
+        Initialize the weights of the Cluster Encoder.
+        """
         for w in self.rnn.parameters():  # initialize the gate weights with orthogonal
             if w.dim()>1:
                 weight_init.orthogonal_(w)
 
     def store_grad_norm(self, grad):
+        """
+        Store the gradient norm.
+
+        Args:
+            grad (tensor): Gradient tensor.
+
+        Returns:
+            grad (tensor): Gradient tensor.
+        """
         norm = torch.norm(grad, 2, 1)
         self.grad_norm = norm.detach().data.mean()
         return grad
 
     def forward2(self, inputs, input_lens, rnn_out, exp_last_h_n, exp_last_c_n, init_h=None, init_c = None, noise=False):
+        """
+        Perform forward pass for training with packing and sorting.
+
+        Args:
+            inputs (tensor): Input tensor.
+            input_lens (tensor): Input sequence lengths.
+            rnn_out (tensor): RNN output tensor.
+            exp_last_h_n (tensor): Expected last hidden states.
+            exp_last_c_n (tensor): Expected last cell states.
+            init_h (tensor): Initial hidden state.
+            init_c (tensor): Initial cell state.
+            noise (bool): Whether to add noise to the output.
+
+        Returns:
+            output_hiddens (tensor): Output hidden states.
+            last_hidden_states (tuple): Last hidden and cell states.
+        """
         batch_size, seq_len, emb_size=inputs.size()
 #         if input_lens is not None:# sort and pack sequence
 
@@ -217,6 +328,18 @@ class Encoder_cluster(nn.Module):
 
   
     def check_hidden_states(self, x, x_lens, init_h, init_c, hids, h_n, c_n):
+        """
+        Check the hidden states' consistency.
+
+        Args:
+            x (tensor): Input tensor.
+            x_lens (tensor): Input sequence lengths.
+            init_h (tensor): Initial hidden state.
+            init_c (tensor): Initial cell state.
+            hids (tensor): Hidden states.
+            h_n (tensor): Hidden state tensor.
+            c_n (tensor): Cell state tensor.
+        """
 
         T_max = x_lens.max()
 
@@ -231,6 +354,21 @@ class Encoder_cluster(nn.Module):
 
 
     def forward(self, inputs, input_lens=None, init_h=None, init_c = None, noise=False, test = False): 
+        """
+        Forward pass of the Cluster Encoder.
+
+        Args:
+            inputs (tensor): Input tensor.
+            input_lens (tensor): Input sequence lengths.
+            init_h (tensor): Initial hidden state.
+            init_c (tensor): Initial cell state.
+            noise (bool): Whether to add noise to the output.
+            test (bool): Whether it's a test forward pass.
+
+        Returns:
+            hids (tensor): Hidden states.
+            hidden_states (tuple): Hidden and cell states.
+        """
         # init_h: [n_layers*n_dir x batch_size x hid_size]
 
         origin_inputs = inputs.clone()
@@ -280,8 +418,7 @@ class Encoder_cluster(nn.Module):
 
 class GatedTransition2(nn.Module):
     """
-    Parameterizes the gaussian latent transition probability `p(z_t | z_{t-1})`
-    See section 5 in the reference for comparison.
+    A module for parameterizing the gaussian latent transition probability `p(z_t | z_{t-1})`
     """
     def __init__(self, z_dim, h_dim, trans_dim):
         super(GatedTransition2, self).__init__()
@@ -309,9 +446,19 @@ class GatedTransition2(nn.Module):
 
     def forward(self, z_t_1, h_t_1, c_t_1):
         """
-        Given the latent `z_{t-1}` corresponding to the time step t-1
-        we return the mean and scale vectors that parameterize the (diagonal) gaussian distribution `p(z_t | z_{t-1})`
-        """        
+        Forward pass of the GatedTransition2 module. Given the latent `z_{t-1}` corresponding to the time step t-1.
+        
+        Args:
+            z_t_1 (Tensor): Latent variable at time step t-1.
+            h_t_1 (Tensor): Hidden state at time step t-1.
+            c_t_1 (Tensor): Cell state at time step t-1.
+
+        Returns:
+            z_t (Tensor): Sampled latent variable at time step t.
+            mu (Tensor): Mean vector for the gaussian distribution.
+            logvar (Tensor): Log-variance vector for the gaussian distribution.
+            h_t (Tensor): Hidden state of the LSTM at time step t.
+            c_t (Tensor): Cell state of the LSTM at time step t.        """        
         gate = self.gate(h_t_1)  # compute the gating function
         
         _, (h_t, c_t) = self.lstm(z_t_1.view(1, z_t_1.shape[0], z_t_1.shape[1]).contiguous(), (h_t_1, c_t_1))
@@ -326,8 +473,7 @@ class GatedTransition2(nn.Module):
 
 class GatedTransition(nn.Module):
     """
-    Parameterizes the gaussian latent transition probability `p(z_t | z_{t-1})`
-    See section 5 in the reference for comparison.
+    A module for parameterizes the gaussian latent transition probability `p(z_t | z_{t-1})`
     """
     def __init__(self, z_dim, trans_dim):
         super(GatedTransition, self).__init__()
@@ -348,9 +494,16 @@ class GatedTransition(nn.Module):
 
     def forward(self, z_t_1):
         """
-        Given the latent `z_{t-1}` corresponding to the time step t-1
-        we return the mean and scale vectors that parameterize the (diagonal) gaussian distribution `p(z_t | z_{t-1})`
-        """        
+        Forward pass of the GatedTransition module. Given the latent `z_{t-1}` corresponding to the time step t-1.
+
+        Args:
+            z_t_1 (Tensor): Latent variable at time step t-1.
+
+        Returns:
+            z_t (Tensor): Sampled latent variable at time step t.
+            mu (Tensor): Mean vector for the gaussian distribution.
+            logvar (Tensor): Log-variance vector for the gaussian distribution.
+        """  
         gate = self.gate(z_t_1) # compute the gating function
         proposed_mean = self.proposed_mean(z_t_1) # compute the 'proposed mean'
         mu = (1 - gate) * self.z_to_mu(z_t_1) + gate * proposed_mean # compute the scale used to sample z_t, using the proposed mean from
@@ -414,6 +567,17 @@ class PostNet_cluster_time(nn.Module):
     The dependence on `x_{t:T}` is through the hidden state of the RNN
     """
     def __init__(self, z_dim, h_dim, cluster_num, dropout, use_gumbel_softmax, sampling_times, bidirt = True):
+        """
+        Initialize the PostNet_cluster module.
+
+        Parameters:
+            z_dim (int): Dimensionality of the latent variable z.
+            h_dim (int): Dimensionality of the hidden state of the RNN.
+            cluster_num (int): Number of clusters/categories for z.
+            dropout (float): Dropout probability applied to the hidden state.
+            sampling_times (int): Number of times to sample z during forward pass.
+            bidirt (bool, optional): If True, consider bidirectional RNN. Defaults to True.
+        """
         super(PostNet_cluster_time, self).__init__()
         self.z_to_h = nn.Sequential(
             nn.Linear(z_dim+1, (1+bidirt)*h_dim),
@@ -431,6 +595,16 @@ class PostNet_cluster_time(nn.Module):
         self.sampling_times = sampling_times
 
     def gen_z_t_dist_now(self, z_t_1, h_x):
+        """
+        Generate the distribution over z_t categories based on z_t_1 and h_x.
+
+        Parameters:
+            z_t_1 (torch.Tensor): Latent variable z at time step t-1.
+            h_x (torch.Tensor): Hidden state of the RNN.
+
+        Returns:
+            z_category (torch.Tensor): Distribution over z_t categories.
+        """
 
         h_combined = 0.5*(self.z_to_h(z_t_1) + h_x)# combine the rnn hidden state with a transformed version of z_t_1
 
@@ -439,15 +613,37 @@ class PostNet_cluster_time(nn.Module):
         return z_category
 
     def get_z_t_from_samples(self, z_t, phi_table):
+        """
+        Transform z_t samples to z_t values based on phi_table.
 
+        Parameters:
+            z_t (torch.Tensor): Sampled z_t values.
+            phi_table (torch.Tensor): Table for transforming z.
+
+        Returns:
+            transformed_z_t (torch.Tensor): Transformed z_t values.
+        """
         return torch.mm(z_t, torch.t(phi_table))
 
 
     def forward(self, z_t_1, h_x, phi_table):
         """
-        Given the latent z at a particular time step t-1 as well as the hidden
+        Forward pass of the module. Given the latent z at a particular time step t-1 as well as the hidden
         state of the RNN `h(x_{t:T})` we return the mean and scale vectors that
         parameterize the (diagonal) gaussian distribution `q(z_t|z_{t-1}, x_{t:T})`
+
+        Parameters:
+            z_t_1 (torch.Tensor): Latent z at time step t-1.
+            h_x (torch.Tensor): Hidden state of the RNN.
+            phi_table (torch.Tensor): Table for transforming z.
+            t (int): Time step.
+            temp (float, optional): Temperature for sampling. Defaults to 0.
+
+        Returns:
+            z_t (torch.Tensor): Sampled z at time step t.
+            z_category (torch.Tensor): Distribution over z categories.
+            phi_z (torch.Tensor): Transformed z values.
+            z_category_sparse (torch.Tensor): Distribution over z categories (sparse version).
         """
         z_category = self.gen_z_t_dist_now(z_t_1, h_x)
 
@@ -479,6 +675,17 @@ class PostNet_cluster2(nn.Module):
     The dependence on `x_{t:T}` is through the hidden state of the RNN
     """
     def __init__(self, z_dim, h_dim, z_std, dropout):
+        """
+        Initialize the PostNet_cluster module.
+
+        Parameters:
+            z_dim (int): Dimensionality of the latent variable z.
+            h_dim (int): Dimensionality of the hidden state of the RNN.
+            cluster_num (int): Number of clusters/categories for z.
+            dropout (float): Dropout probability applied to the hidden state.
+            sampling_times (int): Number of times to sample z during forward pass.
+            bidirt (bool, optional): If True, consider bidirectional RNN. Defaults to True.
+        """
         super(PostNet_cluster2, self).__init__()
         self.z_to_h = nn.Sequential(
             nn.Linear(z_dim, 2*h_dim),
@@ -498,9 +705,17 @@ class PostNet_cluster2(nn.Module):
 
     def forward(self, z_t_1, h_x):
         """
+        Generate the distribution over z_t categories based on z_t_1 and h_x.
         Given the latent z at a particular time step t-1 as well as the hidden
         state of the RNN `h(x_{t:T})` we return the mean and scale vectors that
         parameterize the (diagonal) gaussian distribution `q(z_t|z_{t-1}, x_{t:T})`
+
+        Parameters:
+            z_t_1 (torch.Tensor): Latent variable z at time step t-1.
+            h_x (torch.Tensor): Hidden state of the RNN.
+
+        Returns:
+            z_category (torch.Tensor): Distribution over z_t categories.
         """
         h_combined = 0.5*(self.z_to_h(z_t_1) + h_x)  # combine the rnn hidden state with a transformed version of z_t_1
 
@@ -520,6 +735,13 @@ class PostNet(nn.Module):
     The dependence on `x_{t:T}` is through the hidden state of the RNN
     """
     def __init__(self, z_dim, h_dim):
+        """
+        Initialize the PostNet module.
+
+        Parameters:
+            z_dim (int): Dimensionality of the latent variable z.
+            h_dim (int): Dimensionality of the hidden state of the RNN.
+        """
         super(PostNet, self).__init__()
         self.z_to_h = nn.Sequential(
             nn.Linear(z_dim, h_dim),
@@ -530,9 +752,19 @@ class PostNet(nn.Module):
 
     def forward(self, z_t_1, h_x):
         """
+        Forward pass of the module.
         Given the latent z at a particular time step t-1 as well as the hidden
         state of the RNN `h(x_{t:T})` we return the mean and scale vectors that
         parameterize the (diagonal) gaussian distribution `q(z_t|z_{t-1}, x_{t:T})`
+
+        Parameters:
+            z_t_1 (torch.Tensor): Latent z at time step t-1.
+            h_x (torch.Tensor): Hidden state of the RNN.
+
+        Returns:
+            z_t (torch.Tensor): Sampled z at time step t.
+            mu (torch.Tensor): Mean of the latent distribution.
+            logvar (torch.Tensor): Log-variance of the latent distribution.
         """
         h_combined = 0.5*(self.z_to_h(z_t_1) + h_x)  # combine the rnn hidden state with a transformed version of z_t_1
         mu = self.h_to_mu(h_combined)
@@ -544,10 +776,21 @@ class PostNet(nn.Module):
 
 
 class FilterLinear(nn.Module):
+    """
+    A custom linear layer that applies a filter square matrix to the weight matrix before performing linear transformation.
+    """
     def __init__(self, in_features, out_features, filter_square_matrix, bias=True):
-        '''
-        filter_square_matrix : filter square matrix, whose each elements is 0 or 1.
-        '''
+        """
+            Args:
+            in_features (int): Number of input features.
+            out_features (int): Number of output features.
+            filter_square_matrix (torch.Tensor): Filter square matrix with elements 0 or 1.
+            bias (bool): Whether to include bias in the linear transformation.
+
+        Note:
+            The filter square matrix is applied element-wise to the weight matrix before performing the linear transformation.
+        """
+
         super(FilterLinear, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -567,24 +810,61 @@ class FilterLinear(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
+        """
+        Initialize the weights and biases of the layer.
+        """
         stdv = 1. / math.sqrt(self.weight.size(1))
         self.weight.data.uniform_(-stdv, stdv)
         if self.bias is not None:
             self.bias.data.uniform_(-stdv, stdv)
 
     def forward(self, input):
+        """
+        Perform the forward pass through the layer.
+
+        Args:
+            input (torch.Tensor): Input tensor.
+
+        Returns:
+            torch.Tensor: Output tensor after linear transformation.
+        """
         return F.linear(input, self.filter_square_matrix.mul(self.weight), self.bias)
 
     def __repr__(self):
+        """
+        Generate a string representation of the layer.
+
+        Returns:
+            str: String representation of the layer.
+        """
         return self.__class__.__name__ + '(' \
             + 'in_features=' + str(self.in_features) \
             + ', out_features=' + str(self.out_features) \
             + ', bias=' + str(self.bias is not None) + ')'
 
 class GRU_module(nn.Module):
+    """
+    Custom GRU module that operates on sequences and handles variable sequence lengths.
+    """
     def __init__(self, input_size, hidden_size, device, num_layers=1, x_mean=0,\
-                 bias=True, batch_first=False, bidirectional=False, dropout=0, dropout_type='mloss', return_hidden = False):
-
+                 bias=True, batch_first=False, bidirectional=False, dropout=0, \
+                 dropout_type='mloss', return_hidden = False):
+        """
+        Initialize
+        
+        Args:
+            input_size (int): Number of expected features in the input.
+            hidden_size (int): Number of features in the hidden state.
+            device (torch.device): The device to which tensors will be moved.
+            num_layers (int, optional): Number of recurrent layers. Default is 1.
+            x_mean (float, optional): Mean value of the input. Default is 0.
+            bias (bool, optional): If False, then the layer does not use bias weights. Default is True.
+            batch_first (bool, optional): If True, then the input and output tensors are provided as (batch, seq, feature). Default is False.
+            bidirectional (bool, optional): If True, becomes a bidirectional GRU. Default is False.
+            dropout (float, optional): If non-zero, introduces a `Dropout` layer on the outputs of each GRU layer except the last layer, with dropout probability equal to dropout. Default is 0.
+            dropout_type (str, optional): The type of dropout to use ('mloss' or 'standard'). Default is 'mloss'.
+            return_hidden (bool, optional): If True, return the hidden state output for all time steps. Default is False.
+        """
         super(GRU_module, self).__init__()
 
         self.hidden_size = hidden_size
@@ -598,6 +878,20 @@ class GRU_module(nn.Module):
         self.init_h = torch.zeros([self.n_layers, 1, self.hidden_size], device = self.device)
 
     def forward2(self, inputs, masks, input_lens, deltas, init_h=None):
+        """
+        Perform the forward pass through the GRU module with customized handling of variable sequence lengths.
+
+        Args:
+            inputs (torch.Tensor): Input tensor of shape (batch_size, seq_len, emb_size).
+            masks (torch.Tensor): Mask tensor indicating valid time steps.
+            input_lens (torch.Tensor): Tensor containing lengths of input sequences.
+            deltas (torch.Tensor): Delta tensor.
+            init_h (torch.Tensor, optional): Initial hidden state. Default is None.
+
+        Returns:
+            torch.Tensor: Output hidden states for all time steps.
+            torch.Tensor: Final hidden state for each sequence.
+        """
         batch_size, seq_len, emb_size=inputs.size()
 
         input_lens_sorted, indices = input_lens.sort(descending=True)
@@ -644,6 +938,20 @@ class GRU_module(nn.Module):
 
 
     def forward(self, inputs, masks, input_lens, deltas, init_h=None):
+        """
+        Perform the forward pass through the GRU module with customized handling of variable sequence lengths.
+
+        Args:
+            inputs (torch.Tensor): Input tensor of shape (batch_size, seq_len, emb_size).
+            masks (torch.Tensor): Mask tensor indicating valid time steps.
+            input_lens (torch.Tensor): Tensor containing lengths of input sequences.
+            deltas (torch.Tensor): Delta tensor.
+            init_h (torch.Tensor, optional): Initial hidden state. Default is None.
+
+        Returns:
+            torch.Tensor: Output hidden states for all time steps.
+            torch.Tensor: Final hidden state for each sequence.
+        """
         batch_size, seq_len, emb_size=inputs.size()
 
         input_lens_sorted, indices = input_lens.sort(descending=True)
@@ -694,9 +1002,19 @@ class GRU_module(nn.Module):
 
 class GRUI_cell(nn.Module):
     """
-    Implementation of GRUD.
-    Inputs: x_mean
-            n_smp x 3 x n_channels x len_seq tensor (0: data, 1: mask, 2: deltat)
+    Implementation of GRUD cell.
+    Inputs:
+        input_size (int): Number of expected features in the input.
+        hidden_size (int): Number of features in the hidden state.
+        device (torch.device): The device to which tensors will be moved.
+        num_layers (int, optional): Number of recurrent layers. Default is 1.
+        x_mean (float, optional): Mean value of the input. Default is 0.
+        bias (bool, optional): If False, then the layer does not use bias weights. Default is True.
+        batch_first (bool, optional): If True, then the input and output tensors are provided as (batch, seq, feature). Default is False.
+        bidirectional (bool, optional): If True, becomes a bidirectional GRUD. Default is False.
+        dropout (float, optional): If non-zero, introduces a `Dropout` layer on the outputs of each GRUD layer except the last layer, with dropout probability equal to dropout. Default is 0.
+        dropout_type (str, optional): The type of dropout to use ('mloss' or 'standard'). Default is 'mloss'.
+        return_hidden (bool, optional): If True, return the hidden state output for all time steps. Default is False.
     """
     def __init__(self, input_size, hidden_size, device, num_layers=1, x_mean=0,\
                  bias=True, batch_first=False, bidirectional=False, dropout=0, dropout_type='mloss', return_hidden = False):
@@ -736,11 +1054,22 @@ class GRUI_cell(nn.Module):
 
 
     def reset_parameters(self):
+        """
+        Reset the parameters of the GRUI cell.
+        """
         stdv = 1.0 / math.sqrt(self.hidden_size)
         for weight in self.parameters():
             torch.nn.init.uniform_(weight, -stdv, stdv)
 
     def check_forward_args(self, input, hidden, batch_sizes):
+        """
+        Check the forward arguments compatibility.
+
+        Args:
+            input (torch.Tensor): Input tensor.
+            hidden (torch.Tensor): Hidden state tensor.
+            batch_sizes (torch.Tensor): Batch size tensor.
+        """
         is_input_packed = batch_sizes is not None
         expected_input_dim = 2 if is_input_packed else 3
         if input.dim() != expected_input_dim:
@@ -774,6 +1103,9 @@ class GRUI_cell(nn.Module):
             check_hidden_size(hidden, expected_hidden_size)
 
     def extra_repr(self):
+        """
+        Return the extra representation of the GRUI cell.
+        """
         s = '{input_size}, {hidden_size}'
         if self.num_layers != 1:
             s += ', num_layers={num_layers}'
@@ -793,7 +1125,19 @@ class GRUI_cell(nn.Module):
 
 
     def forward(self, input, Mask, Delta, init_h = None):
-        # input.size = (3, 33,49) : num_input or num_hidden, num_layer or step
+        """
+        Perform the forward pass through the GRUI cell.
+
+        Args:
+            input (torch.Tensor): Input tensor of shape (3, seq_len, input_size) where the first dimension includes data, mask, and deltat.
+            Mask (torch.Tensor): Mask tensor indicating valid time steps.
+            Delta (torch.Tensor): Delta tensor.
+            init_h (torch.Tensor, optional): Initial hidden state. Default is None.
+
+        Returns:
+            torch.Tensor: Output hidden states for all time steps.
+            torch.Tensor: Final hidden state.
+        """
         X = input
 
         step_size = X.size(1) # 49
@@ -845,6 +1189,22 @@ class GRUI_cell(nn.Module):
 
 
 class GRUI_module(nn.Module):
+    """
+    Implementation of the GRUI module.
+
+    Inputs:
+        input_size (int): Number of expected features in the input.
+        hidden_size (int): Number of features in the hidden state.
+        device (torch.device): The device to which tensors will be moved.
+        num_layers (int, optional): Number of recurrent layers. Default is 1.
+        x_mean (float, optional): Mean value of the input. Default is 0.
+        bias (bool, optional): If False, then the layer does not use bias weights. Default is True.
+        batch_first (bool, optional): If True, then the input and output tensors are provided as (batch, seq, feature). Default is False.
+        bidirectional (bool, optional): If True, becomes a bidirectional GRUD. Default is False.
+        dropout (float, optional): If non-zero, introduces a `Dropout` layer on the outputs of each GRUD layer except the last layer, with dropout probability equal to dropout. Default is 0.
+        dropout_type (str, optional): The type of dropout to use ('mloss' or 'standard'). Default is 'mloss'.
+        return_hidden (bool, optional): If True, return the hidden state output for all time steps. Default is False.
+    """
     def __init__(self, input_size, hidden_size, device, num_layers=1, x_mean=0,\
                  bias=True, batch_first=False, bidirectional=False, dropout=0, dropout_type='mloss', return_hidden = False):
 
@@ -860,6 +1220,20 @@ class GRUI_module(nn.Module):
         self.init_h = torch.zeros([self.n_layers, 1, self.hidden_size], device = self.device)
 
     def forward2(self, inputs, masks, input_lens, deltas, init_h=None):
+        """
+        Perform the forward pass through the GRUI module.
+
+        Args:
+            inputs (torch.Tensor): Input tensor.
+            masks (torch.Tensor): Mask tensor indicating valid time steps.
+            input_lens (torch.Tensor): Input sequence lengths.
+            deltas (torch.Tensor): Delta tensor.
+            init_h (torch.Tensor, optional): Initial hidden state. Default is None.
+
+        Returns:
+            torch.Tensor: Output hidden states for all time steps.
+            torch.Tensor: Final hidden state.
+        """
         batch_size, seq_len, emb_size=inputs.size()
 
         input_lens_sorted, indices = input_lens.sort(descending=True)
@@ -905,6 +1279,20 @@ class GRUI_module(nn.Module):
         return output_hiddens, last_h_n[:,inv_indices]#, last_c_n[:, inv_indices])
 
     def forward(self, inputs, masks, input_lens, deltas, init_h=None):
+        """
+        Perform the forward pass through the GRUI module.
+
+        Args:
+            inputs (torch.Tensor): Input tensor.
+            masks (torch.Tensor): Mask tensor indicating valid time steps.
+            input_lens (torch.Tensor): Input sequence lengths.
+            deltas (torch.Tensor): Delta tensor.
+            init_h (torch.Tensor, optional): Initial hidden state. Default is None.
+
+        Returns:
+            torch.Tensor: Output hidden states for all time steps.
+            torch.Tensor: Final hidden state.
+        """
         batch_size, seq_len, emb_size=inputs.size()
 
         input_lens_sorted, indices = input_lens.sort(descending=True)
@@ -956,9 +1344,19 @@ class GRUI_module(nn.Module):
 
 class GRUD_cell(nn.Module):
     """
-    Implementation of GRUD.
-    Inputs: x_mean
-            n_smp x 3 x n_channels x len_seq tensor (0: data, 1: mask, 2: deltat)
+    Implementation of the GRUD cell.
+    Inputs:
+        input_size (int): Number of expected features in the input.
+        hidden_size (int): Number of features in the hidden state.
+        device (torch.device): The device to which tensors will be moved.
+        num_layers (int, optional): Number of recurrent layers. Default is 1.
+        x_mean (float, optional): Mean value of the input. Default is 0.
+        bias (bool, optional): If False, then the layer does not use bias weights. Default is True.
+        batch_first (bool, optional): If True, then the input and output tensors are provided as (batch, seq, feature). Default is False.
+        bidirectional (bool, optional): If True, becomes a bidirectional GRUD. Default is False.
+        dropout (float, optional): If non-zero, introduces a `Dropout` layer on the outputs of each GRUD layer except the last layer, with dropout probability equal to dropout. Default is 0.
+        dropout_type (str, optional): The type of dropout to use ('mloss' or 'standard'). Default is 'mloss'.
+        return_hidden (bool, optional): If True, return the hidden state output for all time steps. Default is False.
     """
     def __init__(self, input_size, hidden_size, device, num_layers=1, x_mean=0,\
                  bias=True, batch_first=False, bidirectional=False, dropout=0, dropout_type='mloss', return_hidden = False):
@@ -1060,8 +1458,19 @@ class GRUD_cell(nn.Module):
         return list(self._parameters.values())
 
     def forward(self, input, Mask, Delta, init_h = None):
-        # input.size = (3, 33,49) : num_input or num_hidden, num_layer or step
+        """
+        Perform the forward pass through the GRUD cell.
 
+        Args:
+            input (torch.Tensor): Input tensor.
+            Mask (torch.Tensor): Mask tensor indicating valid time steps.
+            Delta (torch.Tensor): Delta tensor.
+            init_h (torch.Tensor, optional): Initial hidden state. Default is None.
+
+        Returns:
+            torch.Tensor: Output hidden states for all time steps.
+            torch.Tensor: Final hidden state.
+        """
         X = input
 
         step_size = X.size(1) # 49
@@ -1170,7 +1579,16 @@ class GRUD_cell(nn.Module):
 
 
 class TimeLSTM_module(nn.Module):
+    """
+    Implementation of the TimeLSTM module.
 
+    Inputs:
+        input_size (int): Number of expected features in the input.
+        hidden_size (int): Number of features in the hidden state.
+        dropout (float): Dropout rate.
+        device (torch.device): The device to which tensors will be moved.
+        bidirectional (bool, optional): If True, becomes a bidirectional TimeLSTM. Default is False.
+    """
     def __init__(self, input_size, hidden_size, dropout, device, bidirectional=False):
         super(TimeLSTM_module, self).__init__()
         self.hidden_size = hidden_size
@@ -1183,7 +1601,21 @@ class TimeLSTM_module(nn.Module):
         self.lstm = TimeLSTMCell(input_size, hidden_size, dropout, device, bidirectional)
         
     def forward(self, inputs, time_stamps, input_lens, init_h=None, init_c=None):
+        """
+        Perform the forward pass through the TimeLSTM module.
 
+        Args:
+            inputs (torch.Tensor): Input tensor.
+            time_stamps (torch.Tensor): Time stamps tensor.
+            input_lens (torch.Tensor): Input sequence lengths.
+            init_h (torch.Tensor, optional): Initial hidden state. Default is None.
+            init_c (torch.Tensor, optional): Initial cell state. Default is None.
+
+        Returns:
+            torch.Tensor: Output hidden states for all time steps.
+            torch.Tensor: Final hidden state.
+            torch.Tensor: Final cell state.
+        """
         batch_size = inputs.shape[0]
 
         seq_len = inputs.shape[1]
@@ -1237,9 +1669,24 @@ class TimeLSTM_module(nn.Module):
         output_hiddens = output_list[inv_indices]
 
         return output_hiddens, last_h_n[inv_indices], last_c_n[inv_indices]
-    
-    def forward2(self, inputs, time_stamps, input_lens, init_h=None, init_c=None):
 
+
+    def forward2(self, inputs, time_stamps, input_lens, init_h=None, init_c=None):
+        """
+        Perform an alternate forward pass through the TimeLSTM module.
+
+        Args:
+            inputs (torch.Tensor): Input tensor.
+            time_stamps (torch.Tensor): Time stamps tensor.
+            input_lens (torch.Tensor): Input sequence lengths.
+            init_h (torch.Tensor, optional): Initial hidden state. Default is None.
+            init_c (torch.Tensor, optional): Initial cell state. Default is None.
+
+        Returns:
+            torch.Tensor: Output hidden states for all time steps.
+            torch.Tensor: Final hidden state.
+            torch.Tensor: Final cell state.
+        """
         batch_size = inputs.shape[0]
 
         seq_len = inputs.shape[1]
@@ -1294,6 +1741,16 @@ class TimeLSTM_module(nn.Module):
 
 
 class TimeLSTMCell(nn.Module):
+    """
+    Implementation of the TimeLSTM cell.
+
+    Inputs:
+        input_size (int): Number of expected features in the input.
+        hidden_size (int): Number of features in the hidden state.
+        dropout (float): Dropout rate.
+        device (torch.device): The device to which tensors will be moved.
+        bidirectional (bool, optional): If True, becomes a bidirectional TimeLSTM. Default is False.
+    """
     def __init__(self, input_size, hidden_size, dropout, device, bidirectional=False):
         # assumes that batch_first is always true
         super(TimeLSTMCell, self).__init__()
@@ -1306,9 +1763,32 @@ class TimeLSTMCell(nn.Module):
         self.bidirectional = bidirectional
 
     def elapse_function(self, delta_t):
+        """
+        Calculate the elapse function based on the given delta_t.
+
+        Args:
+            delta_t (torch.Tensor): Delta time.
+
+        Returns:
+            torch.Tensor: Elapse function values.
+        """
         return 1.0/(torch.log(np.e + delta_t))
 
     def forward2(self, inputs, timestamps, init_h=None, init_c=None, reverse=False):
+        """
+        Perform the forward pass through the TimeLSTM cell using an alternate implementation.
+
+        Args:
+            inputs (torch.Tensor): Input tensor.
+            timestamps (torch.Tensor): Timestamps tensor.
+            init_h (torch.Tensor, optional): Initial hidden state. Default is None.
+            init_c (torch.Tensor, optional): Initial cell state. Default is None.
+            reverse (bool, optional): If True, reverse the sequence. Default is False.
+
+        Returns:
+            torch.Tensor: Output hidden states for all time steps.
+            torch.Tensor: Output cell states for all time steps.
+        """
         # inputs: [b, seq, embed]
         # h: [b, hid]
         # c: [b, hid]
@@ -1350,6 +1830,21 @@ class TimeLSTMCell(nn.Module):
         return outputs, c_outputs
 
     def forward(self, inputs, timestamps, init_h=None, init_c=None, reverse=False):
+        """
+        Perform the forward pass through the TimeLSTM cell.
+
+        Args:
+            inputs (torch.Tensor): Input tensor.
+            timestamps (torch.Tensor): Timestamps tensor.
+            init_h (torch.Tensor, optional): Initial hidden state. Default is None.
+            init_c (torch.Tensor, optional): Initial cell state. Default is None.
+            reverse (bool, optional): If True, reverse the sequence. Default is False.
+
+        Returns:
+            torch.Tensor: Output hidden states for all time steps.
+            torch.Tensor: Final hidden state.
+            torch.Tensor: Final cell state.
+        """
         # inputs: [b, seq, embed]
         # h: [b, hid]
         # c: [b, hid]

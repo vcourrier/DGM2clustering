@@ -23,6 +23,7 @@ from torch.nn.parameter import Parameter
 from torchdiffeq import odeint as odeint
 
 from lib.utils import *
+
 def create_classifier(z0_dim, n_labels):
     return nn.Sequential(
             nn.Linear(z0_dim, 300),
@@ -34,12 +35,24 @@ def create_classifier(z0_dim, n_labels):
 
 class Baseline(nn.Module):
     def __init__(self, input_dim, latent_dim, device, 
-        obsrv_std = 0.01, use_binary_classif = False,
-        classif_per_tp = False,
-        use_poisson_proc = False,
-        linear_classifier = False,
-        n_labels = 1,
-        train_classif_w_reconstr = False):
+                 obsrv_std = 0.01, use_binary_classif = False,
+                 classif_per_tp = False,
+                 use_poisson_proc = False,
+                 linear_classifier = False,
+                 n_labels = 1,
+                 train_classif_w_reconstr = False):
+        """
+        Initializes the Baseline model.
+
+        Args:
+            input_dim (int): Dimensionality of input data.
+            latent_dim (int): Dimensionality of the latent space.
+            device (torch.device): Device to place tensors on.
+            ... (other arguments): Additional arguments for model configuration.
+
+        Returns:
+            None
+        """
         super(Baseline, self).__init__()
 
         self.input_dim = input_dim
@@ -69,6 +82,17 @@ class Baseline(nn.Module):
 
 
     def get_gaussian_likelihood(self, truth, pred_y, mask = None):
+        """
+        Computes the likelihood of the data under Gaussian distribution.
+
+        Args:
+            truth (torch.Tensor): Ground truth data.
+            pred_y (torch.Tensor): Predicted data.
+            mask (torch.Tensor): Mask indicating observed data points.
+
+        Returns:
+            torch.Tensor: Log likelihood values.
+        """
         if mask is not None:
             mask = mask.repeat(pred_y.size(0), 1, 1, 1)
 
@@ -86,6 +110,17 @@ class Baseline(nn.Module):
 
 
     def get_mse(self, truth, pred_y, mask = None):
+        """
+        Computes the mean squared error between ground truth and predicted data.
+
+        Args:
+            truth (torch.Tensor): Ground truth data.
+            pred_y (torch.Tensor): Predicted data.
+            mask (torch.Tensor): Mask indicating observed data points.
+
+        Returns:
+            torch.Tensor: Mean squared error.
+        """
         # pred_y shape [n_traj_samples, n_traj, n_tp, n_dim]
         # truth shape  [n_traj, n_tp, n_dim]
         if mask is not None:
@@ -98,8 +133,17 @@ class Baseline(nn.Module):
 
 
     def compute_all_losses(self, batch_dict,
-        n_tp_to_sample = None, n_traj_samples = 1, kl_coef = 1.):
+                           n_tp_to_sample = None, n_traj_samples = 1, kl_coef = 1.):
+        """
+        Computes various loss components for training.
 
+        Args:
+            batch_dict (dict): Dictionary containing batch data.
+            ... (other arguments): Additional arguments for loss computation.
+
+        Returns:
+            dict: Dictionary containing computed loss components.
+        """
         # Condition on subsampled points
         # Make predictions for all the points
         pred_x, info = self.get_reconstruction(batch_dict["tp_to_predict"], 
@@ -176,15 +220,25 @@ class Baseline(nn.Module):
 
 class VAE_Baseline(nn.Module):
     def __init__(self, input_dim, latent_dim, 
-        z0_prior, device,
-        obsrv_std = 0.01, 
-        use_binary_classif = False,
-        classif_per_tp = False,
-        use_poisson_proc = False,
-        linear_classifier = False,
-        n_labels = 1,
-        train_classif_w_reconstr = False):
+                 z0_prior, device,
+                 obsrv_std = 0.01, 
+                 use_binary_classif = False,
+                 classif_per_tp = False,
+                 use_poisson_proc = False,
+                 linear_classifier = False,
+                 n_labels = 1,
+                 train_classif_w_reconstr = False):
+        """
+        Initializes the VAE_Baseline model.
 
+        Args:
+            input_dim (int): Dimensionality of input data.
+            latent_dim (int): Dimensionality of the latent space.
+            ... (other arguments): Additional arguments for model configuration.
+
+        Returns:
+            None
+        """
         super(VAE_Baseline, self).__init__()
         
         self.input_dim = input_dim
@@ -215,6 +269,17 @@ class VAE_Baseline(nn.Module):
 
 
     def get_gaussian_likelihood(self, truth, pred_y, mask = None):
+        """
+        Computes the likelihood of the data under Gaussian distribution.
+
+        Args:
+            truth (torch.Tensor): Ground truth data.
+            pred_y (torch.Tensor): Predicted data.
+            mask (torch.Tensor): Mask indicating observed data points.
+
+        Returns:
+            torch.Tensor: Log likelihood values.
+        """
         # pred_y shape [n_traj_samples, n_traj, n_tp, n_dim]
         # truth shape  [n_traj, n_tp, n_dim]
         n_traj, n_tp, n_dim = truth.size()
@@ -234,6 +299,17 @@ class VAE_Baseline(nn.Module):
 
 
     def get_mse(self, truth, pred_y, mask = None):
+        """
+        Computes the mean squared error between ground truth and predicted data.
+
+        Args:
+            truth (torch.Tensor): Ground truth data.
+            pred_y (torch.Tensor): Predicted data.
+            mask (torch.Tensor): Mask indicating observed data points.
+
+        Returns:
+            torch.Tensor: Mean squared error.
+        """
         # pred_y shape [n_traj_samples, n_traj, n_tp, n_dim]
         # truth shape  [n_traj, n_tp, n_dim]
         n_traj, n_tp, n_dim = truth.size()
@@ -250,6 +326,18 @@ class VAE_Baseline(nn.Module):
         return log_density_data
 
     def get_mae(self, truth, pred_y, mask = None):
+        """
+        Compute the Mean Absolute Error (MAE) between the true data and predicted data.
+
+        Parameters:
+            truth (torch.Tensor): True data tensor of shape [n_traj, n_tp, n_dim].
+            pred_y (torch.Tensor): Predicted data tensor of shape [n_traj_samples, n_traj, n_tp, n_dim].
+            mask (torch.Tensor or None, optional): Mask tensor indicating missing values, shape [n_traj, n_tp, n_dim].
+                If provided, the calculation will consider only the masked values.
+
+        Returns:
+            torch.Tensor: MAE value.
+        """
         # pred_y shape [n_traj_samples, n_traj, n_tp, n_dim]
         # truth shape  [n_traj, n_tp, n_dim]
         n_traj, n_tp, n_dim = truth.size()
@@ -267,6 +355,16 @@ class VAE_Baseline(nn.Module):
 
 
     def compute_all_losses(self, batch_dict, n_traj_samples = 1, kl_coef = 1.):
+        """
+        Computes various loss components for training.
+
+        Args:
+            batch_dict (dict): Dictionary containing batch data.
+            ... (other arguments): Additional arguments for loss computation.
+
+        Returns:
+            dict: Dictionary containing computed loss components.
+        """
         # Condition on subsampled points
         # Make predictions for all the points
         pred_y, info = self.get_reconstruction(batch_dict["tp_to_predict"], 
@@ -383,11 +481,32 @@ class VAE_Baseline(nn.Module):
 
 
 class ODE_RNN(Baseline):
-    def __init__(self, input_dim, latent_dim, device = torch.device("cpu"),
-        z0_diffeq_solver = None, n_gru_units = 100,  n_units = 100,
-        concat_mask = False, obsrv_std = 0.1, use_binary_classif = False,
-        classif_per_tp = False, n_labels = 1, train_classif_w_reconstr = False):
+    """
+    ODE-RNN model class for sequence modeling and reconstruction.
 
+    Inherits from the Baseline class.
+    """
+    def __init__(self, input_dim, latent_dim, device = torch.device("cpu"),
+                 z0_diffeq_solver = None, n_gru_units = 100,  n_units = 100,
+                 concat_mask = False, obsrv_std = 0.1, use_binary_classif = False,
+                 classif_per_tp = False, n_labels = 1, train_classif_w_reconstr = False):
+        """
+        Initialize the ODE-RNN model.
+
+        Args:
+            input_dim (int): Dimensionality of the input data.
+            latent_dim (int): Dimensionality of the latent space.
+            device (torch.device): Device to run the model on.
+            z0_diffeq_solver (object): ODE solver for initial latent state.
+            n_gru_units (int): Number of GRU units in the ODE-RNN encoder.
+            n_units (int): Number of units in the decoder's hidden layers.
+            concat_mask (bool): Whether to concatenate mask to input.
+            obsrv_std (float): Standard deviation of observation noise.
+            use_binary_classif (bool): Whether to perform binary classification.
+            classif_per_tp (bool): Whether to classify at each time point.
+            n_labels (int): Number of labels for classification.
+            train_classif_w_reconstr (bool): Train classification with reconstruction.
+        """
         Baseline.__init__(self, input_dim, latent_dim, device = device, 
             obsrv_std = obsrv_std, use_binary_classif = use_binary_classif,
             classif_per_tp = classif_per_tp,
@@ -414,8 +533,22 @@ class ODE_RNN(Baseline):
 
 
     def get_reconstruction(self, time_steps_to_predict, data, truth_time_steps, 
-        mask = None, n_traj_samples = None, mode = None):
+                           mask = None, n_traj_samples = None, mode = None):
+        """
+        Reconstructs data sequences using the ODE-RNN model.
 
+        Args:
+            time_steps_to_predict (tensor): Time steps to predict the data.
+            data (tensor): Input data sequences.
+            truth_time_steps (tensor): Time steps corresponding to the true data.
+            mask (tensor): Masking tensor for data.
+            n_traj_samples (int): Number of trajectory samples.
+            mode: (optional) Mode of operation.
+
+        Returns:
+            outputs (tensor): Reconstructed data sequences.
+            extra_info (dict): Extra information including latent states and predictions.
+        """
         if (len(truth_time_steps) != len(time_steps_to_predict)) or (torch.sum(time_steps_to_predict - truth_time_steps) != 0):
             raise Exception("Extrapolation mode not implemented for ODE-RNN")
 
@@ -450,10 +583,21 @@ class ODE_RNN(Baseline):
         return outputs, extra_info
 
 class ODEFunc(nn.Module):
+    """
+    ODE function class for performing steps in solving an ODE.
+
+    Inherits from the nn.Module class.
+
+    """
     def __init__(self, input_dim, latent_dim, ode_func_net, device = torch.device("cpu")):
         """
-        input_dim: dimensionality of the input
-        latent_dim: dimensionality used for ODE. Analog of a continous latent state
+        Initialize the ODE function.
+
+        Args:
+            input_dim (int): Dimensionality of the input data.
+            latent_dim (int): Dimensionality used for ODE.
+            ode_func_net (nn.Module): Neural network for the ODE function.
+            device (torch.device): Device to run the ODE function on.
         """
         super(ODEFunc, self).__init__()
 
@@ -467,8 +611,13 @@ class ODEFunc(nn.Module):
         """
         Perform one step in solving ODE. Given current data point y and current time point t_local, returns gradient dy/dt at this time point
 
-        t_local: current time point
-        y: value at the current time point
+        Args:
+            t_local (tensor): Current time point.
+            y (tensor): Value at the current time point.
+            backwards (bool): Whether to solve the ODE backwards.
+
+        Returns:
+            grad (tensor): Gradient dy/dt at the current time point.
         """
         grad = self.get_ode_gradient_nn(t_local, y)
         if backwards:
@@ -476,24 +625,50 @@ class ODEFunc(nn.Module):
         return grad
 
     def get_ode_gradient_nn(self, t_local, y):
+        """
+        Compute the gradient of the ODE function with respect to y.
+
+        Args:
+            t_local (tensor): Current time point.
+            y (tensor): Value at the current time point.
+
+        Returns:
+            gradient (tensor): Gradient of the ODE function.
+        """
         return self.gradient_net(y)
 
     def sample_next_point_from_prior(self, t_local, y):
         """
-        t_local: current time point
-        y: value at the current time point
+        Sample the next point from the prior distribution.
+
+        Args:
+            t_local (tensor): Current time point.
+            y (tensor): Value at the current time point.
+
+        Returns:
+            next_point (tensor): Sampled next point from the prior.
         """
         return self.get_ode_gradient_nn(t_local, y)
 
 #####################################################################################################
 
 class ODEFunc_w_Poisson(ODEFunc):
-    
+    """
+    ODE function class for solving an ODE with Poisson process.
+
+    Inherits from the ODEFunc class.
+    """
     def __init__(self, input_dim, latent_dim, ode_func_net,
-        lambda_net, device = torch.device("cpu")):
+                 lambda_net, device = torch.device("cpu")):
         """
-        input_dim: dimensionality of the input
-        latent_dim: dimensionality used for ODE. Analog of a continous latent state
+        Initialize the ODE function with Poisson process.
+
+        Args:
+            input_dim (int): Dimensionality of the input data.
+            latent_dim (int): Dimensionality used for ODE.
+            ode_func_net (nn.Module): Neural network for the ODE function.
+            lambda_net (nn.Module): Neural network for the Poisson rate.
+            device (torch.device): Device to run the ODE function on.
         """
         super(ODEFunc_w_Poisson, self).__init__(input_dim, latent_dim, ode_func_net, device)
 
@@ -511,6 +686,19 @@ class ODEFunc_w_Poisson(ODEFunc):
         self.const_for_lambda = torch.Tensor([100.]).to(device)
 
     def extract_poisson_rate(self, augmented, final_result = True):
+        """
+        Extracts the Poisson rate from augmented data.
+
+        Args:
+            augmented (tensor): Augmented data.
+            final_result (bool): Whether to compute the final result.
+
+        Returns:
+            y (tensor): Latent variables for reconstruction.
+            log_lambdas (tensor): Log Poisson rate.
+            int_lambda (tensor): Integral of lambda.
+            y_latent_lam (tensor): Latent variables for Poisson rate.
+        """
         y, log_lambdas, int_lambda = None, None, None
 
         assert(augmented.size(-1) == self.latent_dim + self.input_dim)        
@@ -542,6 +730,16 @@ class ODEFunc_w_Poisson(ODEFunc):
 
 
     def get_ode_gradient_nn(self, t_local, augmented):
+        """
+        Compute the gradient of the ODE function with Poisson rate.
+
+        Args:
+            t_local (tensor): Current time point.
+            augmented (tensor): Augmented data.
+
+        Returns:
+            gradient (tensor): Gradient of the ODE function with Poisson rate.
+        """
         y, log_lam, int_lambda, y_latent_lam = self.extract_poisson_rate(augmented, final_result = False)
         dydt_dldt = self.latent_ode(t_local, y_latent_lam)
 
@@ -550,14 +748,36 @@ class ODEFunc_w_Poisson(ODEFunc):
 
 
 class LatentODE(VAE_Baseline):
-    def __init__(self, input_dim, latent_dim, encoder_z0, decoder, diffeq_solver, 
-        z0_prior, device, obsrv_std = None, 
-        use_binary_classif = False, use_poisson_proc = False,
-        linear_classifier = False,
-        classif_per_tp = False,
-        n_labels = 1,
-        train_classif_w_reconstr = False):
+    """
+    LatentODE class inheriting from VAE_Baseline.
+    """
 
+    def __init__(self, input_dim, latent_dim, encoder_z0, decoder, diffeq_solver, 
+                 z0_prior, device, obsrv_std = None, 
+                 use_binary_classif = False, use_poisson_proc = False,
+                 linear_classifier = False,
+                 classif_per_tp = False,
+                 n_labels = 1,
+                 train_classif_w_reconstr = False):
+        """
+        Initialize the LatentODE class.
+
+        Args:
+            input_dim (int): Dimensionality of the input data.
+            latent_dim (int): Dimensionality of the latent space.
+            encoder_z0 (Encoder): Encoder for the initial latent state.
+            decoder (nn.Module): Decoder for generating reconstructed data.
+            diffeq_solver (DiffeqSolver): Differential equation solver.
+            z0_prior (distributions.Distribution): Prior distribution for initial latent state.
+            device (torch.device): Device to run the LatentODE on.
+            obsrv_std (float): Standard deviation for observations.
+            use_binary_classif (bool): Whether to use binary classification.
+            use_poisson_proc (bool): Whether to use Poisson process.
+            linear_classifier (bool): Whether to use a linear classifier.
+            classif_per_tp (bool): Whether to perform classification per time point.
+            n_labels (int): Number of labels.
+            train_classif_w_reconstr (bool): Whether to train classification with reconstruction.
+        """
         super(LatentODE, self).__init__(
             input_dim = input_dim, latent_dim = latent_dim, 
             z0_prior = z0_prior, 
@@ -575,8 +795,23 @@ class LatentODE(VAE_Baseline):
         self.use_poisson_proc = use_poisson_proc
 
     def get_reconstruction(self, time_steps_to_predict, truth, truth_time_steps, 
-        mask = None, n_traj_samples = 1, run_backwards = True, mode = None):
+                           mask = None, n_traj_samples = 1, run_backwards = True, mode = None):
+        """
+        Get the reconstruction results.
 
+        Args:
+            time_steps_to_predict (tensor): Time steps to predict.
+            truth (tensor): Truth data.
+            truth_time_steps (tensor): Time steps corresponding to the truth data.
+            mask (tensor): Mask data.
+            n_traj_samples (int): Number of trajectory samples.
+            run_backwards (bool): Whether to run the model backwards.
+            mode: Mode parameter (not used).
+
+        Returns:
+            pred_x (tensor): Predicted data.
+            all_extra_info (dict): Additional information.
+        """
         if isinstance(self.encoder_z0, Encoder_z0_ODE_RNN) or \
             isinstance(self.encoder_z0, Encoder_z0_RNN):
 
@@ -641,7 +876,16 @@ class LatentODE(VAE_Baseline):
 
 
     def sample_traj_from_prior(self, time_steps_to_predict, n_traj_samples = 1):
+        """
+        Sample trajectories from the prior distribution.
 
+        Args:
+            time_steps_to_predict (tensor): Time steps to predict.
+            n_traj_samples (int): Number of trajectory samples.
+
+        Returns:
+            pred_x (tensor): Predicted data.
+        """
         # Sample z0 from prior
         starting_point_enc = self.z0_prior.sample([n_traj_samples, 1, self.latent_dim]).squeeze(-1)
 
@@ -662,10 +906,25 @@ class LatentODE(VAE_Baseline):
     
     
 class DiffeqSolver(nn.Module):
+    """
+    DiffeqSolver class for solving differential equations.
+    """
     def __init__(self, input_dim, ode_func, method, latents, 
-            odeint_rtol = 1e-4, odeint_atol = 1e-5, device = torch.device("cpu")):
-        super(DiffeqSolver, self).__init__()
+                 odeint_rtol = 1e-4, odeint_atol = 1e-5, device = torch.device("cpu")):
+        """
+        Initialize the DiffeqSolver class.
 
+        Args:
+            input_dim (int): Dimensionality of the input data.
+            ode_func (ODEFunc): ODE function.
+            method (str): ODE solving method.
+            latents (int): Number of latent variables.
+            odeint_rtol (float): Relative tolerance for ODE integration.
+            odeint_atol (float): Absolute tolerance for ODE integration.
+            device (torch.device): Device to run the DiffeqSolver on.
+        """
+        super(DiffeqSolver, self).__init__()
+        
         self.ode_method = method
         self.latents = latents        
         self.device = device
@@ -676,7 +935,15 @@ class DiffeqSolver(nn.Module):
 
     def forward(self, first_point, time_steps_to_predict, backwards = False):
         """
-        # Decode the trajectory through ODE Solver
+        Solve the ODE for given time steps.
+
+        Args:
+            first_point (tensor): First data point.
+            time_steps_to_predict (tensor): Time steps to predict.
+            backwards (bool): Whether to solve the ODE backwards.
+
+        Returns:
+            pred_y (tensor): Predicted trajectory.
         """
         n_traj_samples, n_traj = first_point.size()[0], first_point.size()[1]
         n_dims = first_point.size()[-1]
@@ -693,9 +960,15 @@ class DiffeqSolver(nn.Module):
 
     def sample_traj_from_prior(self, starting_point_enc, time_steps_to_predict, n_traj_samples = 1):
         """
-        # Decode the trajectory through ODE Solver using samples from the prior
+        Sample trajectories from the prior distribution.
 
-        time_steps_to_predict: time steps at which we want to sample the new trajectory
+        Args:
+            starting_point_enc (tensor): Starting point from the prior.
+            time_steps_to_predict (tensor): Time steps to predict.
+            n_traj_samples (int): Number of trajectory samples.
+
+        Returns:
+            pred
         """
         func = self.ode_func.sample_next_point_from_prior
 
