@@ -69,8 +69,6 @@ class Baseline(nn.Module):
 
 
     def get_gaussian_likelihood(self, truth, pred_y, mask = None):
-        # pred_y shape [n_traj_samples, n_traj, n_tp, n_dim]
-        # truth shape  [n_traj, n_tp, n_dim]
         if mask is not None:
             mask = mask.repeat(pred_y.size(0), 1, 1, 1)
 
@@ -368,7 +366,6 @@ class VAE_Baseline(nn.Module):
 
         results = {}
         results["loss"] = torch.mean(loss)
-#         results["likelihood"] = torch.mean(rec_likelihood).detach()
         results["likelihood_res"] = torch.sum(negll*batch_dict["mask_predicted_data"]).detach()/torch.sum(batch_dict["mask_predicted_data"]).detach()
         results["rmse"] = torch.sqrt(torch.sum(mse*batch_dict["mask_predicted_data"]).detach()/(torch.sum(batch_dict["mask_predicted_data"]).detach()))
         results["mae"] = torch.sum(mae*batch_dict["mask_predicted_data"]).detach()/(torch.sum(batch_dict["mask_predicted_data"]).detach())
@@ -381,9 +378,6 @@ class VAE_Baseline(nn.Module):
 
         if batch_dict["labels"] is not None and self.use_binary_classif:
             results["label_predictions"] = info["label_predictions"].detach()
-        
-        
-#         print('loss::', results["l2_norm_loss"], results["kl_first_p"])
         
         return results
 
@@ -438,8 +432,6 @@ class ODE_RNN(Baseline):
         
         latent_ys = latent_ys.permute(0,2,1,3)
         last_hidden = latent_ys[:,:,-1,:]
-
-            #assert(torch.sum(int_lambda[0,0,-1,:] <= 0) == 0.)
 
         outputs = self.decoder(latent_ys)
         # Shift outputs for computing the loss -- we should compare the first output to the second data point, etc.
@@ -649,8 +641,6 @@ class LatentODE(VAE_Baseline):
 
 
     def sample_traj_from_prior(self, time_steps_to_predict, n_traj_samples = 1):
-        # input_dim = starting_point.size()[-1]
-        # starting_point = starting_point.view(1,1,input_dim)
 
         # Sample z0 from prior
         starting_point_enc = self.z0_prior.sample([n_traj_samples, 1, self.latent_dim]).squeeze(-1)
@@ -701,8 +691,7 @@ class DiffeqSolver(nn.Module):
 
         return pred_y
 
-    def sample_traj_from_prior(self, starting_point_enc, time_steps_to_predict, 
-        n_traj_samples = 1):
+    def sample_traj_from_prior(self, starting_point_enc, time_steps_to_predict, n_traj_samples = 1):
         """
         # Decode the trajectory through ODE Solver using samples from the prior
 
